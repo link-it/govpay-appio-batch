@@ -15,3 +15,25 @@ buildNumber.properties
 .project
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
+
+# OWASP Dependency Check cache
+.dependency-check/
+
+# License analysis reports
+third-party-licenses/
+
+# Docker build context
+docker/buildcontext/
+
+# IDEs and editors
+/.idea
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Note di release locali, non tracciate
+RELEASE_NOTES.md
+
+# Report di docker/scan_image.sh
+image-scan-report/

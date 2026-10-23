@@ -1,0 +1,8 @@
+2026-10-23  Giuliano Pintori <pintori@link.it>
+
+	* [Pipeline] Pipeline di validazione e rilascio (#1).
+	Struttura del progetto allineata agli altri componenti GovPay: scheletro
+	Spring Boot, workflow maven.yml (build, test, JaCoCo, OWASP Dependency-Check,
+	SonarCloud, analisi licenze, OSV, SBOM e Dependency-Track, release su tag,
+	immagini Docker di sviluppo e di rilascio con scansione Trivy/Grype) e
+	refresh-owasp-db.yml.
