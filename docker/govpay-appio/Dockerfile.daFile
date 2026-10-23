@@ -1,0 +1,87 @@
+FROM eclipse-temurin:25-jre-alpine
+
+ARG govpay_appio_fullversion=local
+ARG govpay_appio_home=/opt/govpay-appio
+ARG govpay_appio_log=/var/log/govpay-appio
+
+LABEL maintainer="Link.it s.r.l."
+LABEL description="GovPay APPIO (Invio messaggi App IO) Batch Processor - Local Build"
+LABEL govpay.appio.version="${govpay_appio_fullversion}"
+USER root
+
+ENV GOVPAY_APPIO_FULLVERSION=${govpay_appio_fullversion} \
+GOVPAY_APPIO_LOGDIR=${govpay_appio_log} \
+GOVPAY_APPIO_HOME=${govpay_appio_home} \
+HSQLDB_FULLVERSION=2.7.4 \
+HSQLDB_SHA256=9388a1d151c3f91575fa4cabc7f922594aa6ecfd2012957ae853e82a3a5008d5 \
+TZ=Europe/Rome
+
+
+RUN set -eux; \
+apk update; \
+apk upgrade; \
+# Solo cio' che serve a runtime: bash per l'entrypoint, netcat per il
+# controllo del database all'avvio (nc -z), tzdata per il fuso orario. curl e
+# unzip servono solo al build e sono installati e rimossi nel passo che li usa;
+# tar non serve.
+apk add --no-cache bash netcat-openbsd tzdata; \
+rm -rf /var/cache/apk/*; \
+echo "${TZ}" > /etc/timezone; \
+addgroup -S govpay ; \
+adduser -S -G govpay govpay; \
+mkdir -p ${GOVPAY_APPIO_HOME} ${GOVPAY_APPIO_LOGDIR} /opt/sql /opt/jdbc-drivers; \
+chown -R govpay:govpay ${GOVPAY_APPIO_HOME} ${GOVPAY_APPIO_LOGDIR} /opt/sql
+
+WORKDIR ${GOVPAY_APPIO_HOME}
+
+# Copy JAR from local build (buildcontext/)
+COPY govpay-appio-batch.jar ${GOVPAY_APPIO_HOME}/govpay-appio-batch.jar
+
+# Copy SQL scripts (buildcontext/)
+COPY sql /opt/sql
+
+# HSQLDB (SqlTool per l'inizializzazione del database) da SourceForge, con
+# verifica dello sha256 fissato in HSQLDB_SHA256: SourceForge pubblica solo SHA1
+# e MD5, e lo sha256 e' stato verificato contro lo SHA1 pubblicato per
+# hsqldb-2.7.4.zip. Se cambia HSQLDB_FULLVERSION va aggiornato anche lui.
+# curl e unzip servono solo qui: installati e rimossi nello stesso passo.
+RUN set -eux; \
+chown govpay:govpay ${GOVPAY_APPIO_HOME}/govpay-appio-batch.jar; \
+chown -R govpay:govpay /opt/sql; \
+apk add --no-cache --virtual .download curl unzip; \
+curl -fL -sS -o /var/tmp/hsqldb-${HSQLDB_FULLVERSION}.zip https://sourceforge.net/projects/hsqldb/files/hsqldb/hsqldb_2_7/hsqldb-${HSQLDB_FULLVERSION}.zip/download; \
+echo "${HSQLDB_SHA256}  /var/tmp/hsqldb-${HSQLDB_FULLVERSION}.zip" | sha256sum -c -; \
+unzip -q -d /opt /var/tmp/hsqldb-${HSQLDB_FULLVERSION}.zip hsqldb-${HSQLDB_FULLVERSION}/hsqldb/lib/*; \
+rm -f /var/tmp/hsqldb-${HSQLDB_FULLVERSION}.zip; \
+apk del .download
+
+# Copy entrypoint and initialization scripts
+COPY commons/entrypoint.sh commons/init_appio_db.sh /usr/local/bin/
+RUN chown -R govpay:0 /usr/local/bin/entrypoint.sh /usr/local/bin/init_appio_db.sh ${GOVPAY_APPIO_HOME} ${GOVPAY_APPIO_LOGDIR} /opt/hsqldb-${HSQLDB_FULLVERSION}/hsqldb /opt/sql \
+&& chmod -Rf g+rwX ${GOVPAY_APPIO_HOME} ${GOVPAY_APPIO_LOGDIR} /opt/hsqldb-${HSQLDB_FULLVERSION}/hsqldb/ /opt/sql/ \
+&& chmod ug=rx /usr/local/bin/entrypoint.sh /usr/local/bin/init_appio_db.sh
+
+
+USER govpay
+
+ENV SPRING_BATCH_JOB_ENABLED=false \
+    GOVPAY_BATCH_ENABLED=true \
+    GOVPAY_BATCH_THREAD_POOL_SIZE=5 \
+    GOVPAY_BATCH_HEADERS_CHUNK_SIZE=1 \
+    GOVPAY_BATCH_METADATA_CHUNK_SIZE=100 \
+    GOVPAY_BATCH_PAYMENTS_CHUNK_SIZE=50 \
+    GOVPAY_BATCH_SKIP_LIMIT=10 \
+    GOVPAY_BATCH_STALE_THRESHOLD_MINUTES=120 \
+    MANAGEMENT_ENDPOINTS_WEB_BASE_PATH=/actuator \
+    SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=20000 \
+    SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT=10000 \
+    SPRING_DATASOURCE_HIKARI_MAX_LIFETIME=600000 \
+    SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=2 \
+    SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=10 \
+    LOGGING_FILE_NAME=${GOVPAY_APPIO_LOGDIR}/govpay-appio.log \
+    LOGGING_DIRECTORYPATH=${GOVPAY_APPIO_LOGDIR} \
+    LOGGING_FILEPREFIX=govpay-appio
+
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD []
