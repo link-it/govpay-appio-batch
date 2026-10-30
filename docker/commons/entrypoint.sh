@@ -8,10 +8,8 @@
 
 set -e
 
-# Debug di esecuzione (come govpay-docker)
-exec 6<> /tmp/entrypoint_debug.log
-exec 2>&6
-set -x
+# Niente tracing (set -x): scriverebbe nel log anche la password del database
+# (export di SPRING_DATASOURCE_PASSWORD). Lo stderr resta quello del container.
 
 # Funzioni di logging
 log_info() { echo -e "\033[0;32m[INFO]\033[0m $(date '+%Y-%m-%d %H:%M:%S') - $1"; }
@@ -117,8 +115,8 @@ GOVPAY_APPIO_MAX_POOL=${GOVPAY_APPIO_MAX_POOL:-10}
 
 if [ "${GOVPAY_APPIO_POP_DB_SKIP:-TRUE}" != "TRUE" ] && [ -n "${GOVPAY_DB_TYPE}" ]; then
     log_info "Esecuzione script di inizializzazione database..."
-    /usr/local/bin/init_appio_db.sh
-    if [ $? -ne 0 ]; then
+    # Con set -e un "if [ $? -ne 0 ]" dopo il comando non verrebbe mai eseguito
+    if ! /usr/local/bin/init_appio_db.sh; then
         log_error "Inizializzazione database fallita"
         exit 1
     fi
