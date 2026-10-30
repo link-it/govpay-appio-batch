@@ -26,9 +26,6 @@
              profilo (es. -Pdist) e il profilo jar non e' attivo -->
         <packaging.type>jar</packaging.type>
         <spring-boot.layout>ZIP</spring-boot.layout>
-        <!-- OWASP Dependency Check -->
-        <owasp.falsePositives.dir>src/main/resources/owasp/falsePositives</owasp.falsePositives.dir>
-
         <!-- SonarCloud -->
         <sonar.coverage.exclusions>**/test/**,**/*Test*.java</sonar.coverage.exclusions>
     </properties>
