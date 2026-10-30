@@ -20,6 +20,7 @@ Oggi il batch:
 
 - si avvia come applicazione Spring Boot con il datasource del database di GovPay e il `JobRepository` JDBC di Spring Batch configurato da `govpay-common` (le tabelle dei metadati non vengono lette finché non c'è un job);
 - espone gli endpoint actuator (`health`, `info`, `metrics`, `prometheus`);
+- applica i livelli di log impostati dalla console nella tabella `configurazione` (riga `log_level`), senza riavvio;
 - aggiunge transaction id e correlation id alle righe di log e agli header delle risposte HTTP (tracciatura di `govpay-common`).
 
 Sono già pronti, allineati agli altri batch GovPay (es. [govpay-notify-batch](https://github.com/link-it/govpay-notify-batch)): la pipeline di validazione e rilascio, l'immagine Docker con l'inizializzazione dello schema Spring Batch e il pacchetto `sql.zip`.
@@ -30,10 +31,10 @@ Storico delle modifiche nel [ChangeLog](ChangeLog).
 
 | Componente | Quando serve | Obbligatorio | Ruolo |
 |------------|--------------|--------------|-------|
-| Database di GovPay | runtime | sì | Datasource dell'applicazione, necessario all'avvio e controllato dall'health. Oggi il batch non legge né scrive tabelle applicative |
+| Database di GovPay | runtime | sì | Datasource dell'applicazione, necessario all'avvio e controllato dall'health. Oggi il batch legge solo la riga `log_level` della tabella `configurazione` (e `connettori` se `govpay.client.cache.enabled=true`); non scrive tabelle applicative |
 | Tabelle Spring Batch | runtime | no, finché non ci sono job | Metadati delle esecuzioni (`batch_job_*`, `batch_step_*`) su cui è configurato il `JobRepository`. Lo schema è nel pacchetto `sql.zip` (vedi [Compilazione](#compilazione)) e l'immagine Docker può crearlo all'avvio |
 | [govpay-bom](https://github.com/link-it/govpay-bom) | build | sì | Parent Maven: versioni delle dipendenze e dei plugin, analisi OWASP, profilo `dist` |
-| [govpay-common](https://github.com/link-it/govpay-common) | build | sì | `JobRepository` JDBC per i metadati Spring Batch, tracciatura dei log; script di svecchiamento dei metadati inclusi in `sql.zip` |
+| [govpay-common](https://github.com/link-it/govpay-common) | build | sì | `JobRepository` JDBC per i metadati Spring Batch, tracciatura dei log, livelli di log da database (configurazione comune caricata con lo scan di `it.govpay.common.client`); script di svecchiamento dei metadati inclusi in `sql.zip` |
 | App IO | runtime | - | Destinatario previsto dei messaggi: integrazione non ancora implementata |
 | [govpay-gde-api](https://github.com/link-it/govpay-gde-api) | runtime | - | Giornale degli Eventi: integrazione non ancora implementata. Negli altri batch si configura con il connettore `govpay_gde_api` di GovPay, non con variabili d'ambiente |
 
@@ -120,9 +121,22 @@ I driver JDBC non sono inclusi nel jar: vedi [Esecuzione](#esecuzione).
 | `govpay.logging.tracciatura.transaction-response-headers` | `X-Transaction-ID,X-Govpay-IdTransazione` | Header di risposta con il transaction id |
 | `govpay.logging.tracciatura.lunghezza-massima-id` | `128` | Lunghezza massima di un identificativo ricevuto; se non valido ne viene generato uno nuovo |
 | `govpay.logging.tracciatura.pattern-id-valido` | `[A-Za-z0-9._:\-]+` | Espressione regolare che un identificativo ricevuto deve rispettare |
-| `govpay.logging.livelli-dinamici.enabled` | `true` | Livelli di log letti dalla riga `log_level` della tabella `configurazione`. **Oggi senza effetto**: il servizio di configurazione di `govpay-common` non è tra i componenti dell'applicazione |
-| `govpay.logging.livelli-dinamici.intervallo-refresh` | `60s` (variabile `LOG_LEVEL_REFRESH_INTERVAL`) | Intervallo di rilettura dei livelli dal database; oggi senza effetto, come sopra |
-| `govpay.logging.livelli-dinamici.logger-gestiti[0]` | `it.govpay` | Prefissi dei logger modificabili da database; oggi senza effetto, come sopra |
+| `govpay.logging.livelli-dinamici.enabled` | `true` | Livelli di log letti dalla riga `log_level` della tabella `configurazione` (impostati dalla console) |
+| `govpay.logging.livelli-dinamici.intervallo-refresh` | `60s` (variabile `LOG_LEVEL_REFRESH_INTERVAL`) | Intervallo di rilettura dei livelli dal database; `0` li legge solo all'avvio |
+| `govpay.logging.livelli-dinamici.ritardo-iniziale` | `60s` | Ritardo della prima rilettura dopo l'avvio |
+| `govpay.logging.livelli-dinamici.logger-gestiti[0]` | `it.govpay` | Prefissi dei logger modificabili da database; i livelli per altri logger sono ignorati con un avviso |
+
+### Connettori e client HTTP
+
+Componenti di `govpay-common` caricati con la configurazione comune; li useranno i job per chiamare servizi esterni.
+
+| Proprietà | Default | Descrizione |
+|-----------|---------|-------------|
+| `govpay.client.cache.enabled` | `false` | Carica i connettori (tabella `connettori`) all'avvio e li tiene in cache |
+| `govpay.client.async.core-pool-size` | `10` | Thread minimi per le chiamate asincrone (es. eventi al GDE) |
+| `govpay.client.async.max-pool-size` | `50` | Thread massimi per le chiamate asincrone |
+| `govpay.client.async.queue-capacity` | `100` | Richieste in coda in attesa di invio |
+| `govpay.client.async.thread-name-prefix` | `async-http-` | Prefisso dei thread di invio |
 
 ### Monitoraggio
 
@@ -223,7 +237,7 @@ Variabili d'ambiente dell'immagine, oltre alle proprietà Spring Boot in forma d
 | `SERVER_PORT` | no | `10001` | Porta HTTP senza la modalità cron |
 | `MANAGEMENT_SERVER_PORT` | no | porta del servizio | Porta dedicata agli endpoint actuator |
 | `MANAGEMENT_ENDPOINTS` | no | `health,info,metrics,prometheus` | Endpoint actuator esposti |
-| `LOG_LEVEL_REFRESH_INTERVAL` | no | `60s` | Intervallo di rilettura dei livelli di log dal database; oggi senza effetto (vedi [Logging](#logging)) |
+| `LOG_LEVEL_REFRESH_INTERVAL` | no | `60s` | Intervallo di rilettura dei livelli di log dal database |
 | `GOVPAY_APPIO_POP_DB_SKIP` | no | `TRUE` | `FALSE` crea all'avvio le tabelle Spring Batch, se la tabella `GOVPAY_APPIO_DB_CHECK_TABLE` non esiste |
 | `GOVPAY_APPIO_DB_CHECK_TABLE` | no | `batch_job_execution_context` | Tabella che indica che lo schema Spring Batch è già presente |
 | `GOVPAY_APPIO_LIVE_DB_CHECK_SKIP` | no | `FALSE` | Salta l'attesa della porta del database prima dell'inizializzazione |
@@ -253,7 +267,7 @@ curl http://localhost:10001/actuator/health       # stato, compresa la connessio
 curl http://localhost:10001/actuator/prometheus   # metriche in formato Prometheus
 ```
 
-Per spostarli su una porta dedicata impostare `management.server.port` (nel container `MANAGEMENT_SERVER_PORT`). L'endpoint `loggers`, che permette di cambiare i livelli di log a caldo, non è esposto di default perché il servizio non ha autenticazione: abilitarlo solo insieme a una porta dedicata e non raggiungibile dall'esterno, per esempio `MANAGEMENT_SERVER_PORT=9090` e `MANAGEMENT_ENDPOINTS=health,info,metrics,prometheus,loggers`.
+Per spostarli su una porta dedicata impostare `management.server.port` (nel container `MANAGEMENT_SERVER_PORT`). L'endpoint `loggers`, che permette di cambiare i livelli di log a caldo, non è esposto di default perché il servizio non ha autenticazione: abilitarlo solo insieme a una porta dedicata e non raggiungibile dall'esterno, per esempio `MANAGEMENT_SERVER_PORT=9090` e `MANAGEMENT_ENDPOINTS=health,info,metrics,prometheus,loggers`. In alternativa i livelli si cambiano dalla console, tramite la tabella `configurazione`.
 
 ## Pipeline
 

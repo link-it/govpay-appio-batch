@@ -8,6 +8,8 @@
 	tabella su Oracle corretto; intervallo dello scheduler validato.
 	Rimosse dai Dockerfile le variabili d'ambiente non lette.
 	* [Build] Il profilo war produce un war deployabile su application server.
+	* [Logging] Livelli di log letti dalla tabella configurazione attivi:
+	caricata la configurazione comune di govpay-common.
 
 2026-10-23  Giuliano Pintori <pintori@link.it>
 
