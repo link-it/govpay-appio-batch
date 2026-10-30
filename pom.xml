@@ -96,6 +96,12 @@
 					<artifactId>spring-boot-starter-tomcat</artifactId>
 					<scope>provided</scope>
 				</dependency>
+				<!-- Database dei test; a runtime il war usa il datasource dell'application server -->
+				<dependency>
+					<groupId>com.h2database</groupId>
+					<artifactId>h2</artifactId>
+					<scope>test</scope>
+				</dependency>
 			</dependencies>
 		</profile>
 	</profiles>

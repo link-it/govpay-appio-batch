@@ -10,8 +10,13 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * <p>
  * Estende {@link SpringBootServletInitializer} per il deploy del war (profilo
  * Maven {@code war}) su application server; con il fat jar parte da {@link #main}.
+ * <p>
+ * Lo scan di {@code it.govpay.common.client} carica la configurazione comune di
+ * {@code govpay-common} ({@code GovPayClientAutoConfiguration}): connettori,
+ * repository e {@code ConfigurazioneService}, da cui dipendono i livelli di log
+ * letti dalla tabella {@code configurazione} ({@code govpay.logging.livelli-dinamici.*}).
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"it.govpay.appio.batch", "it.govpay.common.client"})
 @EnableScheduling
 public class Application extends SpringBootServletInitializer {
 
