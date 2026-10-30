@@ -14,7 +14,7 @@ Batch Spring Boot che invierà, tramite App IO, i messaggi e gli avvisi di pagam
 
 ## Sommario
 
-> **Progetto in fase di avvio.** Su `main` c'è lo scheletro dell'applicazione: nessun job Spring Batch, nessuna integrazione con App IO e nessuna API REST del batch. Questo README descrive cosa fa oggi il codice; le sezioni vanno aggiornate quando arrivano i job.
+> **Progetto in fase di avvio.** Su `main` c'è lo scheletro dell'applicazione: nessun job Spring Batch, nessuna integrazione con App IO e nessuna API REST del batch. Il porting della spedizione dei promemoria via App IO dal core GovPay è tracciato in [#3](https://github.com/link-it/govpay-appio-batch/issues/3). Questo README descrive cosa fa oggi il codice; le sezioni vanno aggiornate quando arrivano i job.
 
 Oggi il batch:
 
@@ -35,7 +35,7 @@ Storico delle modifiche nel [ChangeLog](ChangeLog).
 | [govpay-bom](https://github.com/link-it/govpay-bom) | build | sì | Parent Maven: versioni delle dipendenze e dei plugin, analisi OWASP, profilo `dist` |
 | [govpay-common](https://github.com/link-it/govpay-common) | build | sì | `JobRepository` JDBC per i metadati Spring Batch, tracciatura dei log; script di svecchiamento dei metadati inclusi in `sql.zip` |
 | App IO | runtime | - | Destinatario previsto dei messaggi: integrazione non ancora implementata |
-| [govpay-gde-api](https://github.com/link-it/govpay-gde-api) | runtime | - | Giornale degli Eventi: integrazione non ancora implementata (vedi `GOVPAY_APPIO_GDE_URL` in [Esecuzione con Docker](#esecuzione-con-docker)) |
+| [govpay-gde-api](https://github.com/link-it/govpay-gde-api) | runtime | - | Giornale degli Eventi: integrazione non ancora implementata. Negli altri batch si configura con il connettore `govpay_gde_api` di GovPay, non con variabili d'ambiente |
 
 ## Compilazione
 
@@ -57,7 +57,15 @@ Per produrre anche `target/sql.zip`, con lo schema Spring Batch per ogni databas
 mvn clean install -Pjar,dist
 ```
 
-Il profilo `jar` va indicato insieme a `dist`: è quello che lascia i driver JDBC fuori dal jar. Il pom definisce anche un profilo `war`, che però oggi non produce un war (il packaging è fisso a `jar`): non va usato.
+Il profilo `jar` va indicato insieme a `dist`: è quello che lascia i driver JDBC fuori dal jar.
+
+Per il deploy su un application server (es. Tomcat 11) si produce il war `target/govpay-appio-batch.war` con il profilo `war`:
+
+```bash
+mvn clean install -P war
+```
+
+Il war non contiene driver JDBC né il Tomcat embedded (in `WEB-INF/lib-provided`): usa il datasource dell'application server, vedi [Deploy del war](#deploy-del-war).
 
 ## Configurazione
 
@@ -84,7 +92,8 @@ Le proprietà si impostano in `application.properties`, da riga di comando (`-D<
 
 | Proprietà | Default | Descrizione |
 |-----------|---------|-------------|
-| `spring.datasource.url` | - | URL JDBC del database di GovPay (obbligatoria) |
+| `spring.datasource.url` | - | URL JDBC del database di GovPay (obbligatoria, salvo con `spring.datasource.jndi-name`) |
+| `spring.datasource.jndi-name` | - | Nome JNDI del datasource dell'application server, per il war (es. `java:comp/env/jdbc/govpay`); sostituisce URL, utente e password |
 | `spring.datasource.username` | - | Utente del database |
 | `spring.datasource.password` | - | Password del database |
 | `spring.datasource.driver-class-name` | dedotto dall'URL | Classe del driver JDBC |
@@ -159,6 +168,25 @@ java -Dloader.path=./jdbc-drivers \
 
 Il processo resta attivo ed espone gli endpoint actuator. Non esiste ancora un profilo `cron` con un'esecuzione singola: avviato con `--spring.main.web-application-type=none`, come fa l'immagine Docker in modalità cron, il processo parte e termina subito con exit code `0`.
 
+### Deploy del war
+
+Il war si copia nella directory `webapps` dell'application server e risponde sotto il context path `/govpay-appio-batch`. Il datasource si definisce nell'application server e si indica con `spring.datasource.jndi-name`; il driver JDBC va nelle librerie del server (per Tomcat `lib/`). Esempio per Tomcat, in `conf/context.xml`:
+
+```xml
+<Resource name="jdbc/govpay" auth="Container" type="javax.sql.DataSource"
+          driverClassName="org.postgresql.Driver"
+          url="jdbc:postgresql://localhost:5432/govpay"
+          username="govpay" password="<password>" maxTotal="10"/>
+```
+
+e tra le opzioni della JVM (es. `bin/setenv.sh`):
+
+```bash
+CATALINA_OPTS="-Dspring.datasource.jndi-name=java:comp/env/jdbc/govpay"
+```
+
+Gli endpoint actuator rispondono allora su `http://<host>:<porta>/govpay-appio-batch/actuator/...`. La pipeline non pubblica il war: si ottiene solo con la build locale.
+
 ## Esecuzione con Docker
 
 L'immagine è prevista su Docker Hub come [linkitaly/govpay-appio-batch](https://hub.docker.com/r/linkitaly/govpay-appio-batch) (release) e `linkitaly/govpay-appio-batch-dev` (sviluppo, a ogni push su `main`). Il servizio risponde sulla porta `10001`; i driver JDBC si montano in `/opt/jdbc-drivers`.
@@ -190,12 +218,12 @@ Variabili d'ambiente dell'immagine, oltre alle proprietà Spring Boot in forma d
 | `GOVPAY_APPIO_MIN_POOL` | no | `2` | Connessioni minime inattive del pool |
 | `GOVPAY_APPIO_MAX_POOL` | no | `10` | Connessioni massime del pool |
 | `GOVPAY_APPIO_BATCH_USA_CRON` | no | - | `true`, `si`, `yes` o `1`: esecuzione singola con il profilo `cron`, senza server HTTP. Oggi, senza job, il container parte e termina subito. Altrimenti il processo resta attivo |
-| `GOVPAY_APPIO_BATCH_INTERVALLO_CRON` | no | `120` | Minuti tra un'esecuzione e l'altra con lo scheduler interno, convertiti in `SCHEDULER_APPIOJOB_FIXEDDELAYSTRING`; oggi senza effetto, non c'è un job da schedulare |
+| `GOVPAY_APPIO_BATCH_INTERVALLO_CRON` | no | `120` | Minuti tra un'esecuzione e l'altra con lo scheduler interno, convertiti in `SCHEDULER_APPIOJOB_FIXEDDELAYSTRING`; un valore non numerico o zero blocca l'avvio. Oggi non c'è un job da schedulare |
+| `SCHEDULER_APPIOJOB_FIXEDDELAYSTRING` | no | - | Intervallo in ms (`scheduler.appioJob.fixedDelayString`); se impostata ha la precedenza su `GOVPAY_APPIO_BATCH_INTERVALLO_CRON`, che viene ignorata con un avviso |
 | `SERVER_PORT` | no | `10001` | Porta HTTP senza la modalità cron |
 | `MANAGEMENT_SERVER_PORT` | no | porta del servizio | Porta dedicata agli endpoint actuator |
 | `MANAGEMENT_ENDPOINTS` | no | `health,info,metrics,prometheus` | Endpoint actuator esposti |
 | `LOG_LEVEL_REFRESH_INTERVAL` | no | `60s` | Intervallo di rilettura dei livelli di log dal database; oggi senza effetto (vedi [Logging](#logging)) |
-| `GOVPAY_APPIO_GDE_URL` | no | - | **Oggi senza effetto**: l'entrypoint ne ricava `GOVPAY_GDE_ENABLED` e `GOVPAY_GDE_BASE_URL`, che il batch non legge |
 | `GOVPAY_APPIO_POP_DB_SKIP` | no | `TRUE` | `FALSE` crea all'avvio le tabelle Spring Batch, se la tabella `GOVPAY_APPIO_DB_CHECK_TABLE` non esiste |
 | `GOVPAY_APPIO_DB_CHECK_TABLE` | no | `batch_job_execution_context` | Tabella che indica che lo schema Spring Batch è già presente |
 | `GOVPAY_APPIO_LIVE_DB_CHECK_SKIP` | no | `FALSE` | Salta l'attesa della porta del database prima dell'inizializzazione |
@@ -212,7 +240,7 @@ Variabili d'ambiente dell'immagine, oltre alle proprietà Spring Boot in forma d
 | `GOVPAY_APPIO_JVM_MAX_DIRECT_MEMORY_SIZE` | no | - | `-XX:MaxDirectMemorySize` della JVM |
 | `JAVA_OPTS` | no | - | Opzioni aggiuntive della JVM |
 
-L'entrypoint imposta `GOVPAY_BATCH_CLUSTER_ID` all'indirizzo IP del container, o al suo hostname se l'IP non si ricava. Le altre variabili che compaiono negli script dell'immagine (es. `INTERVALLO_MINUTI`, `HSQLDB_SHA256`) sono interne e non vanno impostate. Il log di avvio dell'entrypoint è in `/tmp/entrypoint_debug.log` dentro il container.
+L'entrypoint imposta `GOVPAY_BATCH_CLUSTER_ID` all'indirizzo IP del container, o al suo hostname se l'IP non si ricava. `GOVPAY_APPIO_GDE_URL`, presente nelle versioni precedenti della documentazione, non ha effetto: se impostata, l'entrypoint scrive un avviso. Le altre variabili che compaiono negli script dell'immagine (es. `INTERVALLO_MINUTI`, `HSQLDB_SHA256`) sono interne e non vanno impostate. I messaggi dell'entrypoint e degli script di inizializzazione sono nel log del container (`docker logs`).
 
 Costruzione dell'immagine in locale, scansione delle vulnerabilità e pacchetti inclusi sono descritti in [docker/DOCKER.md](docker/DOCKER.md) e [docker/SCANSIONE.md](docker/SCANSIONE.md).
 
