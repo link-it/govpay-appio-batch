@@ -1,3 +1,16 @@
+2026-10-30  Giuliano Pintori <pintori@link.it>
+
+	* [Documentazione] README allineato al modello comune dei progetti GovPay;
+	documentazione Docker riscritta.
+	* [Docker] Entrypoint e init_appio_db.sh: la password del database non
+	viene piu' scritta in log o file temporanei; nuovi tentativi di connessione
+	al database; schema creato anche senza readiness check; controllo della
+	tabella su Oracle corretto; intervallo dello scheduler validato.
+	Rimosse dai Dockerfile le variabili d'ambiente non lette.
+	* [Build] Il profilo war produce un war deployabile su application server.
+	* [Logging] Livelli di log letti dalla tabella configurazione attivi:
+	caricata la configurazione comune di govpay-common.
+
 2026-10-23  Giuliano Pintori <pintori@link.it>
 
 	* [Pipeline] Pipeline di validazione e rilascio (#1).

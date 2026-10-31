@@ -1,6 +1,6 @@
 # govpay-appio-batch - Scansione dell'immagine Docker
 
-Riferimenti: link-it/govpay-appio-batch#28, pilota link-it/govpay-gde-api#36, issue madre link-it/govpay#895.
+Riferimenti: link-it/govpay-appio-batch#1, modello link-it/govpay-notify-batch#28, pilota link-it/govpay-gde-api#36, issue madre link-it/govpay#895.
 
 Ogni immagine costruita dalla pipeline, di release (su tag) e di sviluppo (su `main`), viene scansionata **prima** di essere pubblicata, con [Trivy](https://trivy.dev) e [Grype](https://github.com/anchore/grype): sistema operativo di base, JRE e librerie dell'applicazione. Un'immagine che non supera il gate non viene pubblicata; un'immagine di release gia' pubblicata non viene piu' toccata.
 
