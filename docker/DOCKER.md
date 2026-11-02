@@ -44,7 +44,7 @@ La pipeline costruisce e pubblica `linkitaly/govpay-appio-batch-dev` a ogni push
 
 ## Database
 
-L'entrypoint costruisce l'URL JDBC da `GOVPAY_DB_TYPE` (`postgresql`, `mysql`, `mariadb`, `oracle`), `GOVPAY_DB_SERVER` e `GOVPAY_DB_NAME`; MySQL e MariaDB usano entrambi il driver MySQL. I driver vanno montati in `/opt/jdbc-drivers`.
+L'entrypoint costruisce l'URL JDBC da `GOVPAY_DB_TYPE` (`postgresql`, `mysql`, `mariadb`, `oracle`, `sqlserver`), `GOVPAY_DB_SERVER` e `GOVPAY_DB_NAME`; MySQL e MariaDB usano entrambi il driver MySQL. I driver vanno montati in `/opt/jdbc-drivers`.
 
 Con `GOVPAY_APPIO_POP_DB_SKIP=FALSE`, prima di avviare il batch `init_appio_db.sh`:
 
