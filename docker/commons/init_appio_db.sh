@@ -255,7 +255,14 @@ fi
 # Copia script in posizione temporanea
 mkdir -p /tmp/appio_sql
 cp "/opt/sql/${SQL_DIR}"/*.sql /tmp/appio_sql/ 2>/dev/null || true
-cp "${BATCH_SCHEMA}" /tmp/appio_sql/
+if [ "${GOVPAY_DB_TYPE}" == "sqlserver" ]; then
+    # Su SQL Server le tabelle Spring Batch si creano in minuscolo come quelle di
+    # GovPay: la validazione di Hibernate confronta i nomi rispettando maiuscole e
+    # minuscole. Lo script di Spring Batch non contiene stringhe, si puo' convertire tutto.
+    tr 'A-Z' 'a-z' < "${BATCH_SCHEMA}" > "/tmp/appio_sql/$(basename "${BATCH_SCHEMA}")"
+else
+    cp "${BATCH_SCHEMA}" "/tmp/appio_sql/$(basename "${BATCH_SCHEMA}")"
+fi
 log_info "Script SQL copiati in /tmp/appio_sql/"
 
 # Applica trasformazioni specifiche per vendor
