@@ -78,7 +78,7 @@ Le proprietà si impostano in `application.properties`, da riga di comando (`-D<
 |-----------|---------|-------------|
 | `spring.batch.job.enabled` | `false` | Avvio automatico dei job da parte di Spring Boot: resta `false`, come negli altri batch GovPay |
 | `govpay.batch.job-repository.jdbc.enabled` | `true` | `JobRepository` JDBC sui metadati Spring Batch (da `govpay-common`) |
-| `govpay.batch.enabled` | `true` | Predisposta per il job, oggi non letta |
+| `govpay.batch.enabled` | `true` | Con `false` lo scheduler interno non avvia il job (all'avvio il log lo segnala); `/run` e il profilo `cron` restano disponibili. Nel profilo `cron` non ha effetto |
 | `govpay.batch.cluster-id` | `GovPay-AppIO-Batch` | Identificativo del nodo, predisposto per il coordinamento tra nodi; oggi non letto |
 | `govpay.batch.stale-threshold-minutes` | `120` | Minuti dopo cui un'esecuzione in corso sarà considerata bloccata; oggi non letta |
 | `scheduler.appioJob.fixedDelayString` | `7200000` | Intervallo tra un'esecuzione e la successiva del job, in ms (2 ore); oggi non letta, non c'è un job da schedulare |
