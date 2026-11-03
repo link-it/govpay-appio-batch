@@ -79,7 +79,7 @@ Le proprietà si impostano in `application.properties`, da riga di comando (`-D<
 | `spring.batch.job.enabled` | `false` | Avvio automatico dei job da parte di Spring Boot: resta `false`, come negli altri batch GovPay |
 | `govpay.batch.job-repository.jdbc.enabled` | `true` | `JobRepository` JDBC sui metadati Spring Batch (da `govpay-common`) |
 | `govpay.batch.enabled` | `true` | Con `false` lo scheduler interno non avvia il job (all'avvio il log lo segnala); `/run` e il profilo `cron` restano disponibili. Nel profilo `cron` non ha effetto |
-| `govpay.batch.cluster-id` | `GovPay-AppIO-Batch` | Identificativo del nodo, predisposto per il coordinamento tra nodi; oggi non letto |
+| `govpay.batch.cluster-id` | nome dell'host (nel container l'indirizzo IP) | Identificativo del nodo, deve essere diverso su ogni nodo (vedi [Più nodi](#più-nodi)). Oggi il batch non lo legge: lo usa solo `govpay-common` per il tag `nodo` delle metriche |
 | `govpay.batch.stale-threshold-minutes` | `120` | Minuti dopo cui un'esecuzione in corso sarà considerata bloccata; oggi non letta |
 | `scheduler.appioJob.fixedDelayString` | `7200000` | Intervallo tra un'esecuzione e la successiva del job, in ms (2 ore); oggi non letta, non c'è un job da schedulare |
 | `scheduler.initialDelayString` | `1` | Ritardo della prima esecuzione dopo l'avvio, in ms; oggi non letta |
@@ -149,6 +149,8 @@ Componenti di `govpay-common` caricati con la configurazione comune; li useranno
 | `management.health.db.enabled` | `true` | Include la connessione al database nell'health |
 | `management.metrics.tags.application` | `govpay-appio-batch` | Tag che identifica il servizio nelle metriche |
 | `govpay.metrics.enabled` | `false` | Metriche dei tempi delle chiamate HTTP di `govpay-common` |
+| `govpay.metrics.batch.enabled` | `true` | Metriche dei batch di `govpay-common`; oggi, senza job, aggiungono solo il tag `nodo` (vedi [Monitoraggio](#monitoraggio-1)) |
+| `govpay.metrics.batch.tag-nodo` | `true` | Tag `nodo` con il cluster-id su tutte le metriche |
 
 ## Esecuzione
 
@@ -182,6 +184,18 @@ java -Dloader.path=./jdbc-drivers \
 
 Il processo resta attivo ed espone gli endpoint actuator. Non esiste ancora un profilo `cron` con un'esecuzione singola: avviato con `--spring.main.web-application-type=none`, come fa l'immagine Docker in modalità cron, il processo parte e termina subito con exit code `0`.
 
+### Più nodi
+
+Ogni nodo deve avere un `govpay.batch.cluster-id` diverso. Oggi il valore compare solo nel tag `nodo` delle metriche, che distingue i nodi in Prometheus; quando arriveranno i job servirà anche ad attribuire le esecuzioni al nodo che le ha avviate.
+
+Se la proprietà non è impostata, il valore è il nome dell'host: la variabile d'ambiente `HOSTNAME` se è passata alla JVM, altrimenti il nome restituito dal sistema operativo, e solo se nessuno dei due è disponibile `GovPay-Batch`, uguale su tutti i nodi. Sulle VM con un nome host distinto non serve configurare nulla; altrimenti va impostato un valore per nodo, con la variabile `GOVPAY_BATCH_CLUSTER_ID` o con la proprietà:
+
+```bash
+java ... -Dgovpay.batch.cluster-id=appio-batch-nodo1 -jar target/govpay-appio-batch.jar
+```
+
+Nel container il valore è impostato dall'entrypoint (vedi [Esecuzione con Docker](#esecuzione-con-docker)).
+
 ### Deploy del war
 
 Il war si copia nella directory `webapps` dell'application server e risponde sotto il context path `/govpay-appio-batch`. Il datasource si definisce nell'application server e si indica con `spring.datasource.jndi-name`; il driver JDBC va nelle librerie del server (per Tomcat `lib/`). Esempio per Tomcat, in `conf/context.xml`:
@@ -199,7 +213,7 @@ e tra le opzioni della JVM (es. `bin/setenv.sh`):
 CATALINA_OPTS="-Dspring.datasource.jndi-name=java:comp/env/jdbc/govpay"
 ```
 
-Gli endpoint actuator rispondono allora su `http://<host>:<porta>/govpay-appio-batch/actuator/...`. La pipeline non pubblica il war: si ottiene solo con la build locale.
+Gli endpoint actuator rispondono allora su `http://<host>:<porta>/govpay-appio-batch/actuator/...`. Il cluster-id predefinito è il nome dell'host, condiviso dagli altri batch installati sullo stesso server: va bene, perché le metriche si distinguono anche per il tag `application`, ma tra server diversi i nomi devono essere distinti (vedi [Più nodi](#più-nodi)). La pipeline non pubblica il war: si ottiene solo con la build locale.
 
 ## Esecuzione con Docker
 
@@ -268,6 +282,8 @@ curl http://localhost:10001/actuator/prometheus   # metriche in formato Promethe
 ```
 
 Per spostarli su una porta dedicata impostare `management.server.port` (nel container `MANAGEMENT_SERVER_PORT`). L'endpoint `loggers`, che permette di cambiare i livelli di log a caldo, non è esposto di default perché il servizio non ha autenticazione: abilitarlo solo insieme a una porta dedicata e non raggiungibile dall'esterno, per esempio `MANAGEMENT_SERVER_PORT=9090` e `MANAGEMENT_ENDPOINTS=health,info,metrics,prometheus,loggers`. In alternativa i livelli si cambiano dalla console, tramite la tabella `configurazione`.
+
+Tutte le metriche hanno il tag `nodo`, uguale al cluster-id del nodo (vedi [Più nodi](#più-nodi)), oltre ad `application="govpay-appio-batch"`. Nel container il cluster-id è l'indirizzo IP, quindi dopo un riavvio le serie hanno un `nodo` nuovo: le query che non riguardano un nodo specifico vanno aggregate (es. `sum without (nodo, instance)`). Le metriche di esecuzione dei job `govpay_batch_*` di `govpay-common` compariranno quando il batch avrà un job.
 
 ## Pipeline
 
