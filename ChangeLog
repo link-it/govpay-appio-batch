@@ -1,5 +1,15 @@
 2026-11-03  Giuliano Pintori <pintori@link.it>
 
+	* [Config] Cluster-id del nodo come default (govpay-common#35, #36).
+	Tolta la costante GovPay-AppIO-Batch da application.properties: era uguale
+	su tutti i nodi. Se govpay.batch.cluster-id (o GOVPAY_BATCH_CLUSTER_ID) non
+	e' impostata si usa il nome dell'host (ClusterIdPredefinito di
+	govpay-common); nel container l'entrypoint continua a impostare l'indirizzo
+	IP. Il batch non ha ancora job e non legge il cluster-id: l'unico effetto e'
+	il tag nodo che govpay-common aggiunge a tutte le metriche, che fuori dal
+	container passa da GovPay-AppIO-Batch al nome dell'host. README aggiornato
+	(sezione "Piu' nodi", tag nodo nel monitoraggio).
+
 	* [Config] govpay.batch.enabled spegne lo scheduler interno: con false il
 	job non parte ai tick, mentre /run e il profilo cron restano disponibili
 	(link-it/govpay-common#44, che legge la proprieta'). README aggiornato.
