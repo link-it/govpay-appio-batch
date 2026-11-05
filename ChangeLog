@@ -1,3 +1,8 @@
+2026-11-05  Giuliano Pintori <pintori@link.it>
+
+	* [Doc] README: esempio di configurazione dello scrape di Prometheus
+	(govpay-common#35), con honor_labels: false, come negli altri batch.
+
 2026-11-03  Giuliano Pintori <pintori@link.it>
 
 	* [Config] Cluster-id del nodo come default (govpay-common#35, #36).

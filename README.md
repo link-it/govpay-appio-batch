@@ -285,6 +285,17 @@ Per spostarli su una porta dedicata impostare `management.server.port` (nel cont
 
 Tutte le metriche hanno il tag `nodo`, uguale al cluster-id del nodo (vedi [Più nodi](#più-nodi)), oltre ad `application="govpay-appio-batch"`. Nel container il cluster-id è l'indirizzo IP, quindi dopo un riavvio le serie hanno un `nodo` nuovo: le query che non riguardano un nodo specifico vanno aggregate (es. `sum without (nodo, instance)`). Le metriche di esecuzione dei job `govpay_batch_*` di `govpay-common` compariranno quando il batch avrà un job.
 
+Esempio di configurazione di Prometheus, con la porta dedicata `9090`:
+
+```yaml
+scrape_configs:
+  - job_name: govpay-appio-batch
+    metrics_path: /actuator/prometheus
+    honor_labels: false   # default: le etichette job e instance del target prevalgono
+    static_configs:
+      - targets: ["appio-batch-nodo1:9090", "appio-batch-nodo2:9090"]
+```
+
 ## Pipeline
 
 Validazione (build, test, coverage, OWASP, SonarCloud, licenze, SBOM, scansione dell'immagine) e rilascio su tag sono descritti in [.github/PIPELINE.md](.github/PIPELINE.md).
