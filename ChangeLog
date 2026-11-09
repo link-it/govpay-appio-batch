@@ -1,3 +1,11 @@
+2026-11-09  Giuliano Pintori <pintori@link.it>
+
+	* [Release] Ramo 3.11.x: dipendenze GovPay della linea 3.11
+	Gli sviluppi di GovPay 3.10 e 3.11 non sono compatibili e proseguono su
+	rami separati. Su 3.11.x il parent govpay-bom passa a 2.1.0-SNAPSHOT e le
+	librerie GovPay alle versioni della linea 3.11; la versione del progetto
+	non cambia.
+
 2026-11-05  Giuliano Pintori <pintori@link.it>
 
 	* [Doc] README: esempio di configurazione dello scrape di Prometheus
